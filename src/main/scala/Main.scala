@@ -3,6 +3,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+
 import java.sql.Date
 
 
@@ -112,18 +113,14 @@ object Main {
   // Defining function
   def minThreeFlightsTogether(flightData: DataFrame): Unit = {
 
-    // Creating Sequence for Dataframe
-    val columnsFlight = Seq("passengerId", "flightId", "from", "to", "date")
-
-    // Creating two dataframes from fightData for implementing joins
-    val flight1 = flightData.toDF(columnsFlight: _*).cache()
-    val flight2 = flightData.toDF(columnsFlight: _*).cache()
-
-    flight1.join(flight2, flight1("passengerId") < flight2("passengerId") && flight1("flightId") === flight2("flightId"), "inner")    // Join flight1 and flight2 based on flightID
-      .groupBy(flight1("passengerId"), flight2("passengerId"))                                                                                 // Group by passengerID
-      .agg(count("*").alias("FlightTogether"))                                                                               // Count all based on passenger ID
-      .filter("FlightTogether > 3")                                                                                              // filter passenger with more than 3 flights together
-      .orderBy(desc("FlightTogether"))                                                                                            //Order Data By FlightTogether in Desc order
+    flightData
+      .join(flightData.withColumnRenamed("passengerId", "passengerId2"), "flightId")    // Self Join flightData based on flightID
+      .where(col("passengerId") < col("passengerId2"))                                                  // Filter out cases where the passengerId is equal to the passengerId2 (i.e., a passenger flying alone)
+      .groupBy("passengerId", "passengerId2")                                                                 // Group by passengerID and passengerID2
+      .agg(count("*").alias("FlightTogether"))                                                         // Count all based on passenger ID for each group
+      .filter("FlightTogether > 3")                                                                          // Filter passenger with more than 3 flights together
+      .orderBy(desc("FlightTogether"))                                                                       // Order Data By FlightTogether in Desc order
+      .select("passengerId", "passengerId2", "FlightTogether")
       .show()
   }
 
@@ -131,25 +128,21 @@ object Main {
   // Defining function
   def flownTogether(flightData: DataFrame, atleastNtimes: Int, from: Date, to: Date): Unit = {
 
-    // Creating Sequence for Dataframe
-    val columnsFlight = Seq("passengerId", "flightId", "from", "to", "date")
-
-    // Creating two dataframes from fightData for implementing joins
-    val flight1 = flightData.toDF(columnsFlight: _*).cache()
-    val flight2 = flightData.toDF(columnsFlight: _*).cache()
-
     // Converting input dates to LocalDate
     val fromDate = from.toLocalDate
     val toDate = to.toLocalDate
-    flight1
-      .filter(col("date").between(fromDate.toString, toDate.toString))                                                        // Filtering Dataframe to include only given dates
-      .join(flight2, flight1("passengerId") < flight2("passengerId") && flight1("flightId") === flight2("flightId"), "inner") // Join flight1 and flight2 based on flightID
-      .groupBy(flight1("passengerId"), flight2("passengerId"))                                                                         // Group by passengerID
-      .agg(count("*").alias("FlightTogether"))                                                                      // Count all based on passenger ID
-      .filter(s"FlightTogether >= ${atleastNtimes}")                                                                     // filter passenger with atleast N flights together
-      .orderBy(desc("FlightTogether"))                                                                                   // Order Data By FlightTogether in Desc order
-      .withColumn("from", lit(fromDate))                                                                                    // Adding from column with specified Starting date
-      .withColumn("to", lit(toDate))                                                                                        // Adding to column with specified Starting date
+
+    flightData
+      .filter(col("date").between(fromDate.toString, toDate.toString))                                            // Filtering Dataframe to include only given dates
+      .join(flightData.withColumnRenamed("passengerId", "passengerId2"), "flightId")     // Self Join flightData based on flightID
+      .where(col("passengerId") < col("passengerId2"))                                                  // Filter out cases where the passengerId is equal to the passengerId2 (i.e., a passenger flying alone)
+      .groupBy("passengerId", "passengerId2")                                                                 // Group by passengerID and passengerID2
+      .agg(count("*").alias("FlightTogether"))                                                          // Count all based on passenger ID for each group
+      .filter(s"FlightTogether >= ${atleastNtimes}")                                                         // Filter passenger with atleast N flights together
+      .orderBy(desc("FlightTogether"))                                                                       // Order Data By FlightTogether in Desc order
+      .withColumn("from", lit(fromDate))                                                                        // Adding from column with specified Starting date
+      .withColumn("to", lit(toDate))                                                                           // Adding to column with specified Starting date
+      .select("passengerId", "passengerId2", "FlightTogether", "from", "to")
       .show()
   }
 }
