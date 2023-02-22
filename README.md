@@ -17,9 +17,9 @@ Questions:
 
 ### Dependencies
 
-- Java SDK installed and set jave environment 
-- IntelliJ
-- Scala plugin
+-Java SDK installed and set java environment 
+-IntelliJ
+-Scala plugin
 
 -scalaVersion: "2.13.10"
 -sbtVersion: "1.8.2"
